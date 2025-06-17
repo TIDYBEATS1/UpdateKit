@@ -21,7 +21,7 @@ public struct UpdatePromptView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header with icon and version
+            // MARK: Header
             HStack(spacing: 12) {
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
@@ -38,7 +38,7 @@ public struct UpdatePromptView: View {
             .padding()
             Divider()
 
-            // Main content area
+            // MARK: Main content
             VStack(spacing: 16) {
                 // Release notes title + toggle
                 HStack {
@@ -76,8 +76,10 @@ public struct UpdatePromptView: View {
                         if manager.downloadProgress < 1.0 {
                             ProgressView(value: manager.downloadProgress)
                                 .progressViewStyle(.linear)
+                                .frame(width: 360)
                             Text(manager.status)
                                 .font(.caption)
+                                .foregroundColor(.secondary)
                         } else {
                             ProgressView("Installing…")
                                 .progressViewStyle(.circular)
@@ -100,17 +102,24 @@ public struct UpdatePromptView: View {
             .padding()
             .frame(width: 420)
         }
+        // MARK: Error alert
         .alert(
             "Installation Failed",
             isPresented: Binding(
-                get: { !manager.installSucceeded && !manager.isUpdating && manager.status.hasPrefix("❌") },
+                get: {
+                    !manager.installSucceeded
+                        && !manager.isUpdating
+                        && manager.status.hasPrefix("❌")
+                },
                 set: { _ in }
             ),
             actions: {
                 Button("Retry") { onInstall() }
                 Button("Cancel", role: .cancel) { onCancel() }
             },
-            message: { Text(manager.status) }
+            message: {
+                Text(manager.status)
+            }
         )
     }
 }
