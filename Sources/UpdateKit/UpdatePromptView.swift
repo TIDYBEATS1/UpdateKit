@@ -5,7 +5,7 @@ public struct UpdatePromptView: View {
     @ObservedObject public var manager: UpdateManager
     public let onInstall: () -> Void
     public let onCancel:  () -> Void
-    @State private var showDetails = false    // Sparkle-style collapse toggle
+    @State private var showDetails = false
 
     public init(
         info: UpdateInfo,
@@ -21,7 +21,7 @@ public struct UpdatePromptView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // ── Header ──
+            // Header
             HStack(spacing: 12) {
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
@@ -29,18 +29,19 @@ public struct UpdatePromptView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Version \(info.version) Available")
                         .font(.title2).bold()
-                    Text("A new update is ready to install.")
+                    Text("A new update is ready.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
             }
             .padding()
+
             Divider()
 
-            // ── Content ──
+            // Body
             VStack(spacing: 16) {
-                // Release Notes header + collapse toggle
+                // Release Notes Toggle
                 HStack {
                     Text("Release Notes")
                         .font(.headline)
@@ -56,7 +57,7 @@ public struct UpdatePromptView: View {
                     .buttonStyle(PlainButtonStyle())
                 }
 
-                // Collapsible patch-notes scroll
+                // Notes
                 if showDetails {
                     ScrollView {
                         Text(info.patchNotes)
@@ -70,7 +71,7 @@ public struct UpdatePromptView: View {
                     .padding(.horizontal)
                 }
 
-                // Progress / Action area
+                // Progress or Buttons
                 if manager.isUpdating {
                     VStack(spacing: 8) {
                         if manager.downloadProgress < 1.0 {
@@ -88,7 +89,10 @@ public struct UpdatePromptView: View {
                     HStack {
                         Spacer()
                         Button("Later", role: .cancel, action: onCancel)
-                        Button(action: onInstall) {
+                        Button(action: {
+                            onInstall()
+                            manager.startUpdate(from: info)
+                        }) {
                             Label("Update Now", systemImage: "arrow.down.circle.fill")
                         }
                         .keyboardShortcut(.defaultAction)
@@ -99,7 +103,7 @@ public struct UpdatePromptView: View {
             .padding()
             .frame(width: 420)
         }
-        // ── Failure Alert ──
+        // Failure Alert
         .alert(
             "Installation Failed",
             isPresented: Binding(
