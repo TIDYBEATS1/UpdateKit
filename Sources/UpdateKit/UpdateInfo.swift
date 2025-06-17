@@ -8,16 +8,18 @@
 
 import Foundation
 
-public struct UpdateInfo: Identifiable {
-  public let version: String
-  public let downloadURL: URL
-  public let patchNotes: String
-  public var id: String { version }
-
+public struct UpdateInfo {
+    public let version: String
+    public let downloadURL: URL
+    public let patchNotes: String
 
     public init(version: String, downloadURL: URL, patchNotes: String) {
         self.version = version
         self.downloadURL = downloadURL
         self.patchNotes = patchNotes
     }
+}
+
+extension UpdateInfo: Identifiable {
+    public var id: String { version }
 }
