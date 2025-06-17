@@ -1,46 +1,59 @@
 import Foundation
+import AppKit   // for NSAppleScript
 
 public enum UpdateInstaller {
 
-    /// Downloads the ZIP archive from the provided URL and extracts the first `.app` bundle.
-    public static func downloadAndUnpack(
+    /// Downloads the ZIP, unpacks the first `.app`, then installs it to /Applications
+    public static func downloadUnpackAndInstall(
         from url: URL,
         progress: @escaping (Double) -> Void,
-        completion: @escaping (Result<URL, Error>) -> Void
+        completion: @escaping (Bool, Error?) -> Void
     ) {
+        // 1) Download
         let task = URLSession.shared.downloadTask(with: url) { tempURL, _, error in
             guard let tempURL = tempURL else {
-                completion(.failure(error ?? NSError(domain: "DownloadError", code: -1)))
+                DispatchQueue.main.async {
+                    completion(false, error ?? NSError(domain: "DownloadError", code: -1))
+                }
                 return
             }
 
+            // 2) Unpack
             let fileManager = FileManager.default
             let unzipDir = fileManager.temporaryDirectory.appendingPathComponent("UpdateUnpacked")
-
             try? fileManager.removeItem(at: unzipDir)
             try? fileManager.createDirectory(at: unzipDir, withIntermediateDirectories: true)
 
-            let unzipProcess = Process()
-            unzipProcess.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-            unzipProcess.arguments = ["-o", tempURL.path, "-d", unzipDir.path]
+            let unzip = Process()
+            unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+            unzip.arguments = ["-o", tempURL.path, "-d", unzipDir.path]
+            unzip.terminationHandler = { _ in
 
-            unzipProcess.terminationHandler = { _ in
-                let contents = try? fileManager.contentsOfDirectory(at: unzipDir, includingPropertiesForKeys: nil)
-                if let appURL = contents?.first(where: { $0.pathExtension == "app" }) {
-                    completion(.success(appURL))
-                } else {
-                    completion(.failure(NSError(domain: "UnzipError", code: 1)))
+                let contents = (try? fileManager.contentsOfDirectory(at: unzipDir, includingPropertiesForKeys: nil)) ?? []
+                guard let appURL = contents.first(where: { $0.pathExtension == "app" }) else {
+                    DispatchQueue.main.async {
+                        completion(false, NSError(domain: "UnzipError", code: 1))
+                    }
+                    return
+                }
+
+                // 3) Install via AppleScript (privileged copy)
+                let success = privilegedCopyToApplications(appURL: appURL)
+                DispatchQueue.main.async {
+                    completion(success, success ? nil : NSError(domain: "InstallError", code: 2))
                 }
             }
 
             do {
-                try unzipProcess.run()
+                try unzip.run()
             } catch {
-                completion(.failure(error))
+                DispatchQueue.main.async {
+                    completion(false, error)
+                }
             }
         }
 
-        // 👇 Add this line to track progress live
+        // progress bar
         _ = task.progress.observe(\.fractionCompleted) { prog, _ in
             DispatchQueue.main.async {
                 progress(prog.fractionCompleted)
@@ -50,34 +63,25 @@ public enum UpdateInstaller {
         task.resume()
     }
 
-    /// Replaces the current running app with the provided `.app` bundle.
-    public static func replaceCurrentApp(with newAppURL: URL, completion: @escaping (Bool) -> Void) {
-        let fileManager = FileManager.default
-        let appName = newAppURL.lastPathComponent
-        let destinationURL = URL(fileURLWithPath: "/Applications").appendingPathComponent(appName)
+    /// Uses AppleScript `do shell script ... with administrator privileges`
+    /// to copy the `.app` into /Applications.
+    static private func privilegedCopyToApplications(appURL: URL) -> Bool {
+        let src  = appURL.path.replacingOccurrences(of: "'", with: "'\\''")
+        let dst  = "/Applications/\(appURL.lastPathComponent)".replacingOccurrences(of: "'", with: "'\\''")
+        let script = """
+        do shell script "cp -R '\(src)' '\(dst)'" with administrator privileges
+        """
 
-        print("📦 Installing to: \(destinationURL.path)")
+        var errorInfo: NSDictionary?
+        let appleScript = NSAppleScript(source: script)
+        appleScript?.executeAndReturnError(&errorInfo)
 
-        do {
-            // Ensure app exists at unpacked location
-            guard fileManager.fileExists(atPath: newAppURL.path) else {
-                print("❌ New app not found at: \(newAppURL.path)")
-                completion(false)
-                return
-            }
-
-            // Remove existing if present
-            if fileManager.fileExists(atPath: destinationURL.path) {
-                try fileManager.removeItem(at: destinationURL)
-            }
-
-            // Copy the new app
-            try fileManager.copyItem(at: newAppURL, to: destinationURL)
-            print("✅ Copied to /Applications")
-            completion(true)
-        } catch {
-            print("❌ Install error: \(error)")
-            completion(false)
+        if let err = errorInfo {
+            print("❌ Privileged copy failed: \(err)")
+            return false
+        } else {
+            print("✅ Copied to /Applications via AppleScript")
+            return true
         }
     }
 }

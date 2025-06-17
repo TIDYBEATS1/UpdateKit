@@ -10,42 +10,24 @@ public final class UpdateManager: ObservableObject {
     public init() {}
     
     public func startUpdate(from info: UpdateInfo) {
-        DispatchQueue.main.async {
-            self.isUpdating = true
-            self.status = "Downloading update..."
-            self.downloadProgress = 0.0
-        }
-        
-        UpdateInstaller.downloadAndUnpack(from: info.downloadURL, progress: { progress in
-            DispatchQueue.main.async {
-                self.downloadProgress = progress
-                self.status = String(format: "Downloading... %.0f%%", progress * 100)
-            }
-        }, completion: { result in
-            DispatchQueue.main.async {
-                switch result {
-                case .success(let appURL):
-                    self.status = "Installing update..."
-                    
-                    UpdateInstaller.replaceCurrentApp(with: appURL) { success in
-                        DispatchQueue.main.async {
-                            self.installSucceeded = success
-                            self.status = success ? "✅ Update installed." : "❌ Install failed."
-                            self.isUpdating = false
-                            
-                            if success {
-                                AppReplacer.replaceCurrentApp(with: appURL)
-                                self.promptRelaunch()
-                            }
-                        }
-                    }
-                    
-                case .failure(let error):
-                    self.status = "❌ Update failed: \(error.localizedDescription)"
-                    self.isUpdating = false
+        isUpdating = true
+        status = "Downloading…"
+        UpdateInstaller.downloadUnpackAndInstall(
+            from: info.downloadURL,
+            progress: { p in
+                self.downloadProgress = p
+                self.status = String(format: "Downloading… %.0f%%", p * 100)
+            },
+            completion: { success, error in
+                self.isUpdating = false
+                if success {
+                    self.status = "✅ Update installed."
+                    self.promptRelaunch()
+                } else {
+                    self.status = "❌ Update failed: \(error?.localizedDescription ?? "unknown")"
                 }
             }
-        })
+        )
     }
     
     private func promptRelaunch() {
