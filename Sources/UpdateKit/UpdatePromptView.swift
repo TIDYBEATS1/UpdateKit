@@ -1,10 +1,11 @@
 import SwiftUI
 
-@available(macOS 12.0, *)
 public struct UpdatePromptView: View {
     public let info: UpdateInfo
     public let onInstall: () -> Void
     public let onCancel: () -> Void
+
+    @ObservedObject private var manager = UpdateManager()
 
     public init(info: UpdateInfo, onInstall: @escaping () -> Void, onCancel: @escaping () -> Void) {
         self.info = info
@@ -13,46 +14,63 @@ public struct UpdatePromptView: View {
     }
 
     public var body: some View {
-        ZStack {
-            // ✅ Fully solid background
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(NSColor.windowBackgroundColor))
-                .shadow(radius: 12)
+        VStack(spacing: 24) {
+            Text("🚀 New Update Available")
+                .font(.title)
+                .bold()
 
-            VStack(alignment: .leading, spacing: 16) {
-                Text("🆕 Update Available")
-                    .font(.title2)
-                    .bold()
-
+            VStack(alignment: .leading, spacing: 10) {
                 Text("Version \(info.version)")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-
-                Divider()
-
-                Text("What’s New:")
                     .font(.headline)
 
                 ScrollView {
                     Text(info.patchNotes)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(8)
+                        .padding(.top, 4)
                 }
-                .frame(minHeight: 120)
+                .frame(height: 150)
+            }
 
-                HStack {
-                    Spacer()
-                    Button("Later", action: onCancel)
-                    Button("Update Now", action: onInstall)
-                        .keyboardShortcut(.defaultAction)
-                        .buttonStyle(.borderedProminent)
+            if manager.isUpdating {
+                if manager.downloadProgress < 1.0 {
+                    VStack {
+                        ProgressView(value: manager.downloadProgress)
+                            .progressViewStyle(.linear)
+                        Text(String(format: "Downloading… %.0f%%", manager.downloadProgress * 100))
+                            .font(.caption)
+
+                        if let size = manager.estimatedDownloadSizeMB {
+                            Text("~\(String(format: "%.1f", size)) MB")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                } else {
+                    ProgressView("Installing…")
+                        .progressViewStyle(CircularProgressViewStyle())
+                        .padding(.top)
+                }
+
+                if manager.installSucceeded == false {
+                    Text("❌ Install failed. Please try again later.")
+                        .foregroundColor(.red)
+                        .font(.caption)
+                        .padding(.top)
                 }
             }
-            .padding(24)
-            .frame(width: 500)
+
+            HStack {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                Button("Update Now", action: {
+                    manager.estimateDownloadSize(from: info.downloadURL)
+                    manager.startUpdate(from: info)
+                    onInstall()
+                })
+                .buttonStyle(.borderedProminent)
+            }
         }
-        .frame(width: 520, height: 380) // ✅ Forces real popup size
+        .padding(24)
+        .frame(width: 480)
     }
 }
