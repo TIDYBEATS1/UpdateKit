@@ -1,10 +1,8 @@
-// UpdatePromptView.swift
-
 import SwiftUI
 
 public struct UpdatePromptView: View {
     public let info: UpdateInfo
-    @ObservedObject public var manager: UpdateManager     // ← injected
+    @ObservedObject public var manager: UpdateManager
     public let onInstall: () -> Void
     public let onCancel:  () -> Void
 
@@ -21,29 +19,57 @@ public struct UpdatePromptView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 24) {
-            Button("Update Now") {
-                manager.estimateDownloadSize(from: info.downloadURL)
-                manager.startUpdate(from: info)
-                onInstall()
+        VStack(alignment: .leading, spacing: 16) {
+            Text("New Version \(info.version) Available")
+                .font(.headline)
+
+            ScrollView {
+                Text(info.patchNotes)
+                    .font(.body)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(height: 200)
+            .padding(.vertical, 8)
+
+            if manager.isUpdating {
+                ProgressView(manager.status, value: manager.downloadProgress)
+                    .progressViewStyle(.linear)
+                    .padding(.vertical, 8)
+            }
+
+            HStack {
+                Button("Cancel", role: .cancel) {
+                    onCancel()
+                }
+                .disabled(manager.isUpdating)
+
+                Spacer()
+
+                Button("Update Now") {
+                    onInstall()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(manager.isUpdating)
             }
         }
-        .padding(24)
+        .padding()
         .frame(width: 480)
-        // ← attach the retry alert here, using the injected manager
         .alert(
             "Installation Failed",
-            isPresented: $manager.showRetryAlert,
+            isPresented: Binding(
+                get: { !manager.installSucceeded && !manager.isUpdating && manager.status.hasPrefix("❌") },
+                set: { _ in }
+            ),
             actions: {
                 Button("Retry") {
-                    manager.startUpdate(from: info)
+                    onInstall()
                 }
                 Button("Cancel", role: .cancel) {
                     onCancel()
                 }
             },
             message: {
-                Text(manager.installError ?? "An unknown error occurred.")
+                Text(manager.status)
             }
         )
     }
