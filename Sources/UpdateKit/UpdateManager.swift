@@ -21,19 +21,32 @@ public final class UpdateManager: ObservableObject {
 
     /// Check GitHub for the latest release; on success, sets `pendingUpdate`
     public func checkForUpdates() {
+        // 1️⃣ Read your app’s current version
+        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+
         status = "Checking for updates…"
         GitHubReleaseChecker.fetchLatestRelease(repo: repo) { result in
             DispatchQueue.main.async {
                 switch result {
                 case .success(let release):
-                    self.pendingUpdate = UpdateInfo(
-                        version:     release.version,
-                        downloadURL: release.downloadURL,
-                        patchNotes:  release.patchNotes
-                    )
-                    self.status = "Update \(release.version) available"
+                    // 2️⃣ Compare tag_name (e.g. "1.2.3") to your CFBundleShortVersionString
+                    if release.version == currentVersion {
+                        // already on latest
+                        self.status = "✅ You’re up to date (v\(currentVersion!))"
+                        self.pendingUpdate = nil
+                    } else {
+                        // new version available
+                        self.status = "Update to v\(release.version) available"
+                        self.pendingUpdate = UpdateInfo(
+                            version:    release.version,
+                            downloadURL: release.downloadURL,
+                            patchNotes:  release.patchNotes
+                        )
+                    }
+
                 case .failure(let err):
-                    self.status = "❌ \(err.localizedDescription)"
+                    self.status = "❌ Update check failed: \(err.localizedDescription)"
+                    self.pendingUpdate = nil
                 }
             }
         }
