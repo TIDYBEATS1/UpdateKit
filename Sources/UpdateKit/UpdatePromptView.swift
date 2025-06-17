@@ -1,5 +1,6 @@
 import SwiftUI
 
+@available(macOS 12.0, *)
 public struct UpdatePromptView: View {
     public let info: UpdateInfo
     public let onInstall: () -> Void
@@ -19,7 +20,7 @@ public struct UpdatePromptView: View {
 
             Text("Version \(info.version)")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(.gray)
 
             Text("What’s New:")
                 .font(.headline)
@@ -31,7 +32,7 @@ public struct UpdatePromptView: View {
                     .background(Color.gray.opacity(0.1))
                     .cornerRadius(8)
             }
-            .frame(minHeight: 100)
+            .frame(minHeight: 120)
 
             HStack {
                 Spacer()
@@ -43,8 +44,10 @@ public struct UpdatePromptView: View {
         }
         .padding(24)
         .frame(width: 500)
-        .background(Color(NSColor.windowBackgroundColor))
-        .cornerRadius(12)
-        .shadow(radius: 20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(NSColor.windowBackgroundColor))
+        )
+        .shadow(radius: 12)
     }
 }
