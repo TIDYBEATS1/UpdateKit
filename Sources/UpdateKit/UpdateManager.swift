@@ -6,25 +6,34 @@ public final class UpdateManager: ObservableObject {
     @Published public var isUpdating: Bool = false
     @Published public var installSucceeded: Bool = false
     @Published public var downloadProgress: Double = 0.0  // ✅ NEW
-    
+    @Published public var installError: String?
+    @Published public var showRetryAlert = false
     public init() {}
     
     public func startUpdate(from info: UpdateInfo) {
         isUpdating = true
-        status = "Downloading…"
+        status     = "Downloading…"
+
         UpdateInstaller.downloadUnpackAndInstall(
             from: info.downloadURL,
             progress: { p in
-                self.downloadProgress = p
-                self.status = String(format: "Downloading… %.0f%%", p * 100)
+                DispatchQueue.main.async {
+                    self.downloadProgress = p
+                    self.status = String(format: "Downloading… %.0f%%", p * 100)
+                }
             },
             completion: { success, error in
-                self.isUpdating = false
-                if success {
-                    self.status = "✅ Update installed."
-                    self.promptRelaunch()
-                } else {
-                    self.status = "❌ Update failed: \(error?.localizedDescription ?? "unknown")"
+                DispatchQueue.main.async {
+                    self.isUpdating = false
+
+                    if success {
+                        self.status = "✅ Update installed."
+                        self.promptRelaunch()
+                    } else {
+                        // set the error message and show retry alert
+                        self.installError    = error?.localizedDescription ?? "Authentication failed"
+                        self.showRetryAlert  = true
+                    }
                 }
             }
         )
