@@ -8,18 +8,22 @@
 
 import Foundation
 
-public struct UpdateInfo {
-    public let version: String
+// In UpdateKit/Sources/UpdateKit/UpdateInfo.swift
+
+public struct UpdateInfo: Identifiable {
+    public let version:    String
     public let downloadURL: URL
     public let patchNotes: String
 
-    public init(version: String, downloadURL: URL, patchNotes: String) {
-        self.version = version
+    // to satisfy Identifiable
+    public let id = UUID()
+
+    public init(version: String,
+                downloadURL: URL,
+                patchNotes: String)
+    {
+        self.version    = version
         self.downloadURL = downloadURL
         self.patchNotes = patchNotes
     }
-}
-
-extension UpdateInfo: Identifiable {
-    public var id: String { version }
 }
