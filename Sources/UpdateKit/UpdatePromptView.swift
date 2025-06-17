@@ -5,7 +5,7 @@ public struct UpdatePromptView: View {
     @ObservedObject public var manager: UpdateManager
     public let onInstall: () -> Void
     public let onCancel:  () -> Void
-    @State private var showDetails = false    // Sparkle-style details toggle
+    @State private var showDetails = false    // Sparkle-style collapse toggle
 
     public init(
         info: UpdateInfo,
@@ -21,15 +21,15 @@ public struct UpdatePromptView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // MARK: Header
+            // ── Header ──
             HStack(spacing: 12) {
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
                     .frame(width: 48, height: 48)
-                VStack(alignment: .leading) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Version \(info.version) Available")
                         .font(.title2).bold()
-                    Text("A new update is ready.")
+                    Text("A new update is ready to install.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -38,9 +38,9 @@ public struct UpdatePromptView: View {
             .padding()
             Divider()
 
-            // MARK: Main content
+            // ── Content ──
             VStack(spacing: 16) {
-                // Release notes title + toggle
+                // Release Notes header + collapse toggle
                 HStack {
                     Text("Release Notes")
                         .font(.headline)
@@ -48,7 +48,7 @@ public struct UpdatePromptView: View {
                     Button(action: { withAnimation { showDetails.toggle() } }) {
                         HStack(spacing: 4) {
                             Image(systemName: showDetails ? "chevron.down" : "chevron.right")
-                            Text("Show Details")
+                            Text(showDetails ? "Hide Details" : "Show Details")
                         }
                         .font(.subheadline)
                         .foregroundColor(.blue)
@@ -56,7 +56,7 @@ public struct UpdatePromptView: View {
                     .buttonStyle(PlainButtonStyle())
                 }
 
-                // Collapsible release notes pane
+                // Collapsible patch-notes scroll
                 if showDetails {
                     ScrollView {
                         Text(info.patchNotes)
@@ -70,16 +70,14 @@ public struct UpdatePromptView: View {
                     .padding(.horizontal)
                 }
 
-                // Progress or action buttons
+                // Progress / Action area
                 if manager.isUpdating {
                     VStack(spacing: 8) {
                         if manager.downloadProgress < 1.0 {
                             ProgressView(value: manager.downloadProgress)
                                 .progressViewStyle(.linear)
-                                .frame(width: 360)
                             Text(manager.status)
                                 .font(.caption)
-                                .foregroundColor(.secondary)
                         } else {
                             ProgressView("Installing…")
                                 .progressViewStyle(.circular)
@@ -91,8 +89,7 @@ public struct UpdatePromptView: View {
                         Spacer()
                         Button("Later", role: .cancel, action: onCancel)
                         Button(action: onInstall) {
-                            Text("Update Now")
-                                .frame(minWidth: 80)
+                            Label("Update Now", systemImage: "arrow.down.circle.fill")
                         }
                         .keyboardShortcut(.defaultAction)
                     }
@@ -102,15 +99,13 @@ public struct UpdatePromptView: View {
             .padding()
             .frame(width: 420)
         }
-        // MARK: Error alert
+        // ── Failure Alert ──
         .alert(
             "Installation Failed",
             isPresented: Binding(
-                get: {
-                    !manager.installSucceeded
+                get: { !manager.installSucceeded
                         && !manager.isUpdating
-                        && manager.status.hasPrefix("❌")
-                },
+                        && manager.status.hasPrefix("❌") },
                 set: { _ in }
             ),
             actions: {
