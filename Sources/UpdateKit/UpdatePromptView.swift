@@ -1,13 +1,14 @@
-//
-//  UpdatePromptView.swift
-//  UpdateKit
-//
-//  Created by Sam Stanwell on 17/06/2025.
-//
-
-
 import SwiftUI
 
+#if os(macOS)
+import AppKit
+let backgroundColor = Color(nsColor: NSColor.windowBackgroundColor)
+#else
+import UIKit
+let backgroundColor = Color(UIColor.systemBackground)
+#endif
+
+@available(macOS 12.0, *)
 public struct UpdatePromptView: View {
     public let info: UpdateInfo
     public let onInstall: () -> Void
@@ -29,17 +30,17 @@ public struct UpdatePromptView: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
 
-            Text("What’s New")
+            Text("What’s New:")
                 .font(.headline)
 
             ScrollView {
                 Text(info.patchNotes)
-                    .padding()
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.textBackgroundColor))
+                    .padding()
+                    .background(Color.gray.opacity(0.1))
                     .cornerRadius(8)
             }
-            .frame(minHeight: 120)
+            .frame(minHeight: 100)
 
             HStack {
                 Spacer()
@@ -51,5 +52,8 @@ public struct UpdatePromptView: View {
         }
         .padding(24)
         .frame(width: 500)
+        .background(backgroundColor)
+        .cornerRadius(12)
+        .shadow(radius: 20)
     }
 }
