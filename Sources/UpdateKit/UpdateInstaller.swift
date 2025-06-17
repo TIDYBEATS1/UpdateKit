@@ -53,15 +53,21 @@ public enum UpdateInstaller {
     /// Replaces the current running app with the provided `.app` bundle.
     public static func replaceCurrentApp(with newAppURL: URL, completion: @escaping (Bool) -> Void) {
         let fileManager = FileManager.default
-        let currentAppURL = Bundle.main.bundleURL
-        let backupURL = currentAppURL.appendingPathExtension("backup")
+        let destinationURL = URL(fileURLWithPath: "/Applications/\(newAppURL.lastPathComponent)")
 
         do {
-            try fileManager.moveItem(at: currentAppURL, to: backupURL)
-            try fileManager.copyItem(at: newAppURL, to: currentAppURL)
+            // Remove existing app if it's already there
+            if fileManager.fileExists(atPath: destinationURL.path) {
+                try fileManager.removeItem(at: destinationURL)
+            }
+
+            // Copy new app into /Applications
+            try fileManager.copyItem(at: newAppURL, to: destinationURL)
+
+            print("✅ App copied to Applications: \(destinationURL.path)")
             completion(true)
         } catch {
-            try? fileManager.moveItem(at: backupURL, to: currentAppURL) // rollback
+            print("❌ Failed to replace app: \(error)")
             completion(false)
         }
     }
