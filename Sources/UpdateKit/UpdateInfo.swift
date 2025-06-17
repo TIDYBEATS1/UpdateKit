@@ -9,10 +9,11 @@
 import Foundation
 
 public struct UpdateInfo: Identifiable {
-    public let id = UUID() // 👈 required for .sheet(item:)
-    public let version: String
-    public let downloadURL: URL
-    public let patchNotes: String
+  public let version: String
+  public let downloadURL: URL
+  public let patchNotes: String
+  public var id: String { version }
+
 
     public init(version: String, downloadURL: URL, patchNotes: String) {
         self.version = version
