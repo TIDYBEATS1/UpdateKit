@@ -5,7 +5,7 @@ public struct UpdatePromptView: View {
     @ObservedObject public var manager: UpdateManager
     public let onInstall: () -> Void
     public let onCancel:  () -> Void
-
+    
     public init(
         info: UpdateInfo,
         manager: UpdateManager,
@@ -17,43 +17,22 @@ public struct UpdatePromptView: View {
         self.onInstall = onInstall
         self.onCancel  = onCancel
     }
-
+    
     public var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("New Version \(info.version) Available")
+        VStack(spacing: 16) {
+            Text("New Version: \(info.version)")
                 .font(.headline)
-
             ScrollView {
                 Text(info.patchNotes)
                     .font(.body)
-                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(height: 200)
-            .padding(.vertical, 8)
-
-            if manager.isUpdating {
-                ProgressView(manager.status, value: manager.downloadProgress)
-                    .progressViewStyle(.linear)
-                    .padding(.vertical, 8)
-            }
-
             HStack {
-                Button("Cancel", role: .cancel) {
-                    onCancel()
-                }
-                .disabled(manager.isUpdating)
-
-                Spacer()
-
-                Button("Update Now") {
-                    onInstall()
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(manager.isUpdating)
+                Button("Update Now", action: onInstall)
+                Button("Cancel", role: .cancel, action: onCancel)
             }
         }
         .padding()
-        .frame(width: 480)
+        .frame(width: 400, height: 300)
         .alert(
             "Installation Failed",
             isPresented: Binding(
