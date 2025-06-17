@@ -11,19 +11,18 @@ import Foundation
 // In UpdateKit/Sources/UpdateKit/UpdateInfo.swift
 
 public struct UpdateInfo: Identifiable {
-    public let version:    String
-    public let downloadURL: URL
-    public let patchNotes: String
+  public let version:    String
+  public let downloadURL: URL
+  public let patchNotes: String
 
-    // to satisfy Identifiable
-    public let id = UUID()
+  public let id = UUID()    // ← for SwiftUI .sheet(item:)
 
-    public init(version: String,
-                downloadURL: URL,
-                patchNotes: String)
-    {
-        self.version    = version
-        self.downloadURL = downloadURL
-        self.patchNotes = patchNotes
-    }
+  public init(version: String,
+              downloadURL: URL,
+              patchNotes: String)
+  {
+    self.version     = version
+    self.downloadURL = downloadURL
+    self.patchNotes  = patchNotes
+  }
 }
