@@ -5,7 +5,7 @@ public struct UpdatePromptView: View {
     @ObservedObject public var manager: UpdateManager
     public let onInstall: () -> Void
     public let onCancel:  () -> Void
-    
+
     public init(
         info: UpdateInfo,
         manager: UpdateManager,
@@ -17,22 +17,52 @@ public struct UpdatePromptView: View {
         self.onInstall = onInstall
         self.onCancel  = onCancel
     }
-    
+
     public var body: some View {
         VStack(spacing: 16) {
             Text("New Version: \(info.version)")
                 .font(.headline)
+
+            Divider()
+
+            // Release notes
             ScrollView {
                 Text(info.patchNotes)
                     .font(.body)
+                    .padding(.horizontal)
             }
-            HStack {
-                Button("Update Now", action: onInstall)
-                Button("Cancel", role: .cancel, action: onCancel)
+            .frame(maxHeight: 150)
+
+            // Progress / Actions
+            if manager.isUpdating {
+                VStack(spacing: 8) {
+                    if manager.downloadProgress < 1.0 {
+                        ProgressView(value: manager.downloadProgress)
+                            .progressViewStyle(.linear)
+                        Text(String(format: "%@", manager.status))
+                            .font(.caption)
+                    } else {
+                        ProgressView("Installing…")
+                            .progressViewStyle(.circular)
+                    }
+                }
+                .padding(.top)
+            } else {
+                HStack(spacing: 20) {
+                    Button(action: onCancel) {
+                        Label("Later", systemImage: "xmark")
+                    }
+                    Spacer()
+                    Button(action: onInstall) {
+                        Label("Update Now", systemImage: "arrow.down.circle.fill")
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+                .padding(.top)
             }
         }
         .padding()
-        .frame(width: 400, height: 300)
+        .frame(width: 420)
         .alert(
             "Installation Failed",
             isPresented: Binding(
@@ -40,12 +70,8 @@ public struct UpdatePromptView: View {
                 set: { _ in }
             ),
             actions: {
-                Button("Retry") {
-                    onInstall()
-                }
-                Button("Cancel", role: .cancel) {
-                    onCancel()
-                }
+                Button("Retry") { onInstall() }
+                Button("Cancel", role: .cancel) { onCancel() }
             },
             message: {
                 Text(manager.status)
