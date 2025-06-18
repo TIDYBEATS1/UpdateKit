@@ -19,10 +19,10 @@ public final class UpdateManager: ObservableObject {
 
     // MARK: — Public API
 
-    /// Check GitHub for the latest release; on success, sets `pendingUpdate`
+    /// Check GitHub for the latest release; on success, sets `pendingUpdate` only if it's newer
     public func checkForUpdates() {
         // 1️⃣ Read your app’s current version
-        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
 
         status = "Checking for updates…"
         GitHubReleaseChecker.fetchLatestRelease(repo: repo) { result in
@@ -30,18 +30,18 @@ public final class UpdateManager: ObservableObject {
                 switch result {
                 case .success(let release):
                     // 2️⃣ Compare tag_name (e.g. "1.2.3") to your CFBundleShortVersionString
-                    if release.version == currentVersion {
-                        // already on latest
-                        self.status = "✅ You’re up to date (v\(currentVersion!))"
-                        self.pendingUpdate = nil
-                    } else {
+                    if release.version.compare(currentVersion, options: .numeric) == .orderedDescending {
                         // new version available
                         self.status = "Update to v\(release.version) available"
                         self.pendingUpdate = UpdateInfo(
-                            version:    release.version,
+                            version:     release.version,
                             downloadURL: release.downloadURL,
                             patchNotes:  release.patchNotes
                         )
+                    } else {
+                        // already on latest
+                        self.status = "✅ You’re up to date (v\(currentVersion))"
+                        self.pendingUpdate = nil
                     }
 
                 case .failure(let err):
