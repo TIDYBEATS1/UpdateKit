@@ -14,28 +14,42 @@ public enum UpdateInstaller {
         downloadAndUnpack(from: url, progress: progress) { result in
             switch result {
             case .success(let newAppURL):
+                print("✅ [Updater] Downloaded new build to:", newAppURL.path)
+
                 // 1️⃣ In-place
                 if isBundleWritable() {
                     do {
                         try replaceInPlace(newAppURL: newAppURL)
+                        print("🔄 [Updater] Replaced in-place at:", Bundle.main.bundleURL.path)
                         return completion(true, nil)
-                    } catch { /* fall through */ }
+                    } catch {
+                        print("⚠️ [Updater] replaceInPlace failed:", error)
+                    }
+                } else {
+                    print("ℹ️ [Updater] Bundle not writable at:", Bundle.main.bundleURL.path)
                 }
+
                 // 2️⃣ ~/Applications
                 do {
                     try installToUserApplications(newAppURL: newAppURL)
+                    print("🔄 [Updater] Installed to ~/Applications:", newAppURL.lastPathComponent)
                     return completion(true, nil)
-                } catch { /* fall through */ }
-                // 3️⃣ /Applications with prompt
+                } catch {
+                    print("⚠️ [Updater] installToUserApplications failed:", error)
+                }
+
+                // 3️⃣ /Applications with admin prompt
                 let (ok, errMsg) = privilegedCopyToApplications(appURL: newAppURL)
+                print("🔄 [Updater] privilegedCopyToApplications ok? \(ok), errMsg:", errMsg ?? "none")
                 let nsErr = errMsg.map {
                     NSError(domain: "UpdateInstaller", code: 1,
                             userInfo: [NSLocalizedDescriptionKey: $0])
                 }
-                completion(ok, nsErr)
+                return completion(ok, nsErr)
 
             case .failure(let error):
-                completion(false, error)
+                print("❌ [Updater] downloadAndUnpack failed:", error)
+                return completion(false, error)
             }
         }
     }
@@ -51,7 +65,7 @@ public enum UpdateInstaller {
         try fm.moveItem(at: newAppURL, to: current)
     }
 
-    // MARK: – Step 2: user‐level Applications
+    // MARK: – Step 2: user-level Applications
     private static func installToUserApplications(newAppURL: URL) throws {
         let fm       = FileManager.default
         let userApps = fm.homeDirectoryForCurrentUser.appendingPathComponent("Applications")
@@ -66,12 +80,17 @@ public enum UpdateInstaller {
     // MARK: – Step 3: admin prompt fallback
     @discardableResult
     private static func privilegedCopyToApplications(appURL: URL) -> (Bool, String?) {
-        let script = #"do shell script "cp -R \"\#(appURL.path)\" /Applications/" with administrator privileges"#
-        var errDict: NSDictionary?
+        let dest = URL(fileURLWithPath: "/Applications")
+            .appendingPathComponent(appURL.lastPathComponent)
+        let script = """
+        do shell script "rm -rf '\(dest.path)' && cp -R '\(appURL.path)' '\(dest.path)'" with administrator privileges
+        """
+        var errorDict: NSDictionary?
         let apple = NSAppleScript(source: script)!
-        apple.executeAndReturnError(&errDict)
-        if let e = errDict {
-            return (false, e[NSAppleScript.errorMessage] as? String)
+        _ = apple.executeAndReturnError(&errorDict)
+        if let err = errorDict {
+            let msg = err[NSAppleScript.errorMessage] as? String
+            return (false, msg)
         }
         return (true, nil)
     }
@@ -102,15 +121,18 @@ public enum UpdateInstaller {
                     completion(.failure(NSError(domain: "UnzipError", code: 1)))
                 }
             }
-
-            do { try unzip.run() }
-            catch { completion(.failure(error)) }
+            do { try unzip.run() } catch { completion(.failure(error)) }
         }
 
-        // observe download progress
-        _ = task.progress.observe(\.fractionCompleted, options: [.new]) { prog, _ in
+        // Keep the observation alive until download completes
+        var observation: NSKeyValueObservation? = nil
+        observation = task.progress.observe(\.fractionCompleted, options: [.new]) { prog, _ in
             DispatchQueue.main.async {
                 progress(prog.fractionCompleted)
+            }
+            if prog.fractionCompleted >= 1.0 {
+                observation?.invalidate()
+                observation = nil
             }
         }
 
