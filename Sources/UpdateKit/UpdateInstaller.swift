@@ -2,43 +2,49 @@ import Foundation
 import AppKit
 
 public enum UpdateInstaller {
-    /// Keep the observation alive until teardown
     private static var downloadObservation: NSKeyValueObservation?
 
-    /// Downloads the ZIP, unpacks it, then installs via one of three strategies:
-    /// 1) In-place (if you shipped unsigned & it’s writable)
-    /// 2) ~/Applications (no privileges)
-    /// 3) /Applications via an admin prompt
+    /// Prompt for admin once, up-front
+    private static func requestAdminPrivileges() throws {
+        let script = """
+        do shell script "true" with administrator privileges
+        """
+        var errorDict: NSDictionary?
+        let apple = NSAppleScript(source: script)!
+        apple.executeAndReturnError(&errorDict)
+        if let err = errorDict {
+            let msg = err[NSAppleScript.errorMessage] as? String
+            throw NSError(domain: "UpdateInstaller",
+                          code: 2,
+                          userInfo: [NSLocalizedDescriptionKey: msg ?? "User denied permission"])
+        }
+    }
+
     public static func downloadAndInstall(
         from url: URL,
         progress: @escaping (Double) -> Void,
         completion: @escaping (Bool, Error?) -> Void
     ) {
+        // 1️⃣ Ask for perms before we do anything
+        do {
+            try requestAdminPrivileges()
+        } catch {
+            return completion(false, error)
+        }
+
+        // 2️⃣ Now start download + unpack + install as before
         downloadAndUnpack(from: url, progress: progress) { result in
-            // Tear down observation as soon as unpack is done
             downloadObservation = nil
 
             switch result {
             case .success(let newAppURL):
-                // 1️⃣ In-place
                 if isBundleWritable() {
-                    do {
-                        try replaceInPlace(newAppURL: newAppURL)
-                        return completion(true, nil)
-                    } catch {
-                        // fall through to next
-                    }
+                    do { try replaceInPlace(newAppURL: newAppURL); return completion(true, nil) }
+                    catch { /* fall through */ }
                 }
+                do { try installToUserApplications(newAppURL: newAppURL); return completion(true, nil) }
+                catch { /* fall through */ }
 
-                // 2️⃣ ~/Applications
-                do {
-                    try installToUserApplications(newAppURL: newAppURL)
-                    return completion(true, nil)
-                } catch {
-                    // fall through
-                }
-
-                // 3️⃣ /Applications with prompt
                 let (ok, errMsg) = privilegedCopyToApplications(appURL: newAppURL)
                 let nsErr = errMsg.map {
                     NSError(domain: "UpdateInstaller", code: 1,
