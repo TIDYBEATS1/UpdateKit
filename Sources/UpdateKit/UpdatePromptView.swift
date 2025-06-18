@@ -7,6 +7,11 @@ public struct UpdatePromptView: View {
     public let onCancel:  () -> Void
     @State private var showDetails = false
 
+    // Convert Markdown into an AttributedString once
+    private var releaseNotes: AttributedString {
+        (try? AttributedString(markdown: info.patchNotes, options: .init(interpretedSyntax: .full))) ?? AttributedString(info.patchNotes)
+    }
+
     public init(
         info: UpdateInfo,
         manager: UpdateManager,
@@ -21,12 +26,12 @@ public struct UpdatePromptView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header
+            // — Header
             HStack(spacing: 12) {
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
                     .frame(width: 48, height: 48)
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading) {
                     Text("Version \(info.version) Available")
                         .font(.title2).bold()
                     Text("A new update is ready.")
@@ -39,39 +44,39 @@ public struct UpdatePromptView: View {
 
             Divider()
 
-            // Body
-            VStack(spacing: 16) {
-                // Release Notes Toggle
+            // — Release notes section
+            VStack(spacing: 8) {
                 HStack {
                     Text("Release Notes")
                         .font(.headline)
                     Spacer()
-                    Button(action: { withAnimation { showDetails.toggle() } }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: showDetails ? "chevron.down" : "chevron.right")
-                            Text(showDetails ? "Hide Details" : "Show Details")
-                        }
-                        .font(.subheadline)
-                        .foregroundColor(.blue)
+                    Button {
+                        withAnimation { showDetails.toggle() }
+                    } label: {
+                        Image(systemName: showDetails ? "chevron.down" : "chevron.right")
+                        Text(showDetails ? "Hide Details" : "Show Details")
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
 
-                // Notes
                 if showDetails {
                     ScrollView {
-                        Text(info.patchNotes)
-                            .font(.body)
-                            .padding()
+                        Text(releaseNotes)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding()
                     }
-                    .frame(height: 180)
+                    .frame(height: 200)
                     .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(6)
                     .padding(.horizontal)
                 }
+            }
+            .padding()
 
-                // Progress or Buttons
+            Divider()
+
+            // — Progress or buttons
+            Group {
                 if manager.isUpdating {
                     VStack(spacing: 8) {
                         if manager.downloadProgress < 1.0 {
@@ -84,41 +89,30 @@ public struct UpdatePromptView: View {
                                 .progressViewStyle(.circular)
                         }
                     }
-                    .padding(.top)
+                    .padding()
                 } else {
                     HStack {
                         Spacer()
                         Button("Later", role: .cancel, action: onCancel)
-                        Button(action: {
-                            onInstall()
-                            manager.startUpdate(from: info)
-                        }) {
-                            Label("Update Now", systemImage: "arrow.down.circle.fill")
-                        }
-                        .keyboardShortcut(.defaultAction)
+                        Button("Update Now", action: onInstall)
+                            .keyboardShortcut(.defaultAction)
                     }
-                    .padding(.top)
+                    .padding()
                 }
             }
-            .padding()
-            .frame(width: 420)
         }
-        // Failure Alert
+        .frame(width: 450)
         .alert(
             "Installation Failed",
             isPresented: Binding(
-                get: { !manager.installSucceeded
-                        && !manager.isUpdating
-                        && manager.status.hasPrefix("❌") },
+                get: { !manager.installSucceeded && !manager.isUpdating && manager.status.hasPrefix("❌") },
                 set: { _ in }
             ),
             actions: {
                 Button("Retry") { onInstall() }
                 Button("Cancel", role: .cancel) { onCancel() }
             },
-            message: {
-                Text(manager.status)
-            }
+            message: { Text(manager.status) }
         )
     }
 }
