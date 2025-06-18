@@ -1,39 +1,3 @@
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>UpdateKit v1.0.0 – Patch Notes</title>
-  <style>
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      line-height: 1.6;
-      padding: 2rem;
-      background: #f9f9fb;
-      color: #333;
-      max-width: 800px;
-      margin: auto;
-    }
-    code {
-      background: #f1f1f1;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-family: monospace;
-    }
-    pre {
-      background: #f1f1f1;
-      padding: 1rem;
-      overflow: auto;
-      border-radius: 6px;
-    }
-    h1, h2, h3 {
-      margin-top: 2rem;
-    }
-    ul {
-      padding-left: 1.5rem;
-    }
-  </style>
-</head>
-<body>
-
 <h1>🛠️ UpdateKit v1.0.0 – Patch Notes Release</h1>
 <p><em>Sparkle-inspired macOS update framework. Ultra-lightweight. Delivers <code>.zip</code> updates to <code>~/Downloads</code>. No app replacement, no permissions, no code signing. Modern, sandbox-safe, and dev-friendly.</em></p>
 
