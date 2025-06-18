@@ -1,4 +1,4 @@
-🛠️ UpdateKit v1.0.0 – Patch Notes Released
+🛠️ UpdateKit v1.0.0 – Patch Notes Release
 Sparkle-inspired macOS update framework. Ultra-lightweight. Delivers `.zip` updates to `~/Downloads`. No app replacement, no permissions, no code signing. Modern, sandbox-safe, and dev-friendly.
 
 🚀 v1.0.0: The Launch Update
