@@ -4,159 +4,97 @@ import AppKit
 public enum UpdateInstaller {
     private static var downloadObservation: NSKeyValueObservation?
 
-    // MARK: – Step 0: Ask once for Admin privileges up front
-    private static func requestAdminPrivileges() throws {
-        let script = """
-        do shell script "true" with administrator privileges
-        """
-        var errorDict: NSDictionary?
-        let apple = NSAppleScript(source: script)!
-        apple.executeAndReturnError(&errorDict)
-        if let err = errorDict {
-            let msg = err[NSAppleScript.errorMessage] as? String
-            throw NSError(domain: "UpdateInstaller",
-                          code: 2,
-                          userInfo: [NSLocalizedDescriptionKey: msg ?? "User denied permission"])
-        }
-    }
-
-    // MARK: – Public entry point
-    public static func downloadAndInstall(
+    /// Downloads a ZIP from the given URL into ~/Downloads,
+    /// unpacks it there, and reveals the new .app in Finder.
+    public static func downloadToDownloads(
         from url: URL,
         progress: @escaping (Double) -> Void,
         completion: @escaping (Bool, Error?) -> Void
     ) {
-        // 1️⃣ Ask for admin up front
-        do {
-            try requestAdminPrivileges()
-        } catch {
-            return completion(false, error)
-        }
-
-        // 2️⃣ Locate the Downloads folder
+        // 1️⃣ Find Downloads folder
         guard let downloadsURL = FileManager.default
                 .urls(for: .downloadsDirectory, in: .userDomainMask)
                 .first
         else {
             return completion(false,
-                              NSError(domain: "UpdateInstaller",
-                                      code: 3,
-                                      userInfo: [NSLocalizedDescriptionKey: "Downloads folder not found"]))
+                NSError(domain: "UpdateInstaller",
+                        code: 10,
+                        userInfo: [NSLocalizedDescriptionKey: "Could not locate Downloads folder"]))
         }
 
-        // 3️⃣ Kick off download/unpack/install
-        downloadAndUnpack(from: url,
-                          into: downloadsURL.appendingPathComponent("PS5NORMacApp-Update", isDirectory: true),
-                          progress: progress) { result in
+        // 2️⃣ Prepare destination ZIP path
+        let zipName = url.lastPathComponent
+        let destZip = downloadsURL.appendingPathComponent(zipName)
+
+        // 3️⃣ Start download
+        let task = URLSession.shared.downloadTask(with: url) { tempURL, _, error in
+            // cleanup observation
             downloadObservation = nil
 
-            switch result {
-            case .success(let newAppURL):
-                // Try the three install strategies in order:
-                if isBundleWritable() {
-                    do { try replaceInPlace(newAppURL: newAppURL); return completion(true, nil) }
-                    catch { /* fallthrough */ }
-                }
-                do { try installToUserApplications(newAppURL: newAppURL); return completion(true, nil) }
-                catch { /* fallthrough */ }
-
-                let (ok, errMsg) = privilegedCopyToApplications(appURL: newAppURL)
-                let err = errMsg.map {
-                    NSError(domain: "UpdateInstaller", code: 1,
-                            userInfo: [NSLocalizedDescriptionKey: $0])
-                }
-                completion(ok, err)
-
-            case .failure(let error):
-                completion(false, error)
-            }
-        }
-    }
-
-    // MARK: – Download + Unpack helper
-    private static func downloadAndUnpack(
-        from url: URL,
-        into unpackDir: URL,
-        progress: @escaping (Double) -> Void,
-        completion: @escaping (Result<URL, Error>) -> Void
-    ) {
-        let fm = FileManager.default
-        // 1️⃣ Prepare your unpack directory
-        try? fm.removeItem(at: unpackDir)
-        try? fm.createDirectory(at: unpackDir, withIntermediateDirectories: true)
-
-        let task = URLSession.shared.downloadTask(with: url) { tmpURL, _, err in
-            guard let tmpURL = tmpURL else {
-                return completion(.failure(err ?? NSError(domain: "DownloadError", code: -1)))
-            }
-
-            // 2️⃣ Unpack using ditto
-            let unzip = Process()
-            unzip.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-            unzip.arguments     = ["-xk", tmpURL.path, unpackDir.path]
-
-            // 3️⃣ Termination handler must be Sendable—so re-fetch FileManager inside
-            unzip.terminationHandler = { _ in
-                // ⚠️ Don’t capture the outer `fm`; grab a fresh one here
-                let localFM = FileManager.default
-                let files = (try? localFM.contentsOfDirectory(at: unpackDir, includingPropertiesForKeys: nil)) ?? []
-
-                if let app = files.first(where: { $0.pathExtension == "app" }) {
-                    completion(.success(app))
-                } else {
-                    completion(.failure(NSError(domain: "UnzipError", code: 1)))
-                }
+            guard let tmp = tempURL, error == nil else {
+                return completion(false, error)
             }
 
             do {
-                try unzip.run()
+                let fm = FileManager.default
+                // remove old ZIP if present
+                if fm.fileExists(atPath: destZip.path) {
+                    try fm.removeItem(at: destZip)
+                }
+                // move freshly-downloaded ZIP into ~/Downloads
+                try fm.moveItem(at: tmp, to: destZip)
             } catch {
-                completion(.failure(error))
+                return completion(false, error)
+            }
+
+            // 4️⃣ Unpack into a known subfolder
+            let unpackDir = downloadsURL.appendingPathComponent("PS5NORMacApp-Update")
+            do {
+                try FileManager.default.removeItem(at: unpackDir)
+                try FileManager.default.createDirectory(at: unpackDir,
+                                                        withIntermediateDirectories: true)
+            } catch {
+                // non‐fatal—will try to overwrite later
+            }
+
+            let unzip = Process()
+            unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+            unzip.arguments     = ["-o", destZip.path, "-d", unpackDir.path]
+
+            do {
+                try unzip.run()
+                unzip.waitUntilExit()
+            } catch {
+                return completion(false, error)
+            }
+
+            // 5️⃣ Find the new .app bundle
+            let apps = (try? FileManager.default
+                          .contentsOfDirectory(at: unpackDir,
+                                               includingPropertiesForKeys: nil)) ?? []
+            guard let newApp = apps.first(where: { $0.pathExtension == "app" }) else {
+                return completion(false,
+                    NSError(domain: "UpdateInstaller",
+                            code: 11,
+                            userInfo: [NSLocalizedDescriptionKey: "No .app found in update"]))
+            }
+
+            // 6️⃣ Reveal in Finder
+            DispatchQueue.main.async {
+                NSWorkspace.shared.activateFileViewerSelecting([newApp])
+            }
+
+            // Done!
+            completion(true, nil)
+        }
+
+        // Observe progress
+        downloadObservation = task.progress.observe(\.fractionCompleted, options: [.new]) { prog, _ in
+            DispatchQueue.main.async {
+                progress(prog.fractionCompleted)
             }
         }
 
-        // Observe download progress as before
-        downloadObservation = task.progress.observe(\.fractionCompleted, options: [.new]) { prog, _ in
-            DispatchQueue.main.async { progress(prog.fractionCompleted) }
-        }
-
         task.resume()
-    }
-    // MARK: – Install strategies (as you already have them) …
-
-    private static func isBundleWritable() -> Bool {
-        FileManager.default.isWritableFile(atPath: Bundle.main.bundleURL.path)
-    }
-
-    private static func replaceInPlace(newAppURL: URL) throws {
-        let current = Bundle.main.bundleURL
-        let fm = FileManager.default
-        try fm.removeItem(at: current)
-        try fm.moveItem(at: newAppURL, to: current)
-    }
-
-    private static func installToUserApplications(newAppURL: URL) throws {
-        let fm       = FileManager.default
-        let userApps = fm.homeDirectoryForCurrentUser.appendingPathComponent("Applications")
-        try fm.createDirectory(at: userApps, withIntermediateDirectories: true)
-        let dest     = userApps.appendingPathComponent(newAppURL.lastPathComponent)
-        if fm.fileExists(atPath: dest.path) { try fm.removeItem(at: dest) }
-        try fm.moveItem(at: newAppURL, to: dest)
-    }
-
-    @discardableResult
-    private static func privilegedCopyToApplications(appURL: URL) -> (Bool, String?) {
-        let dest = URL(fileURLWithPath: "/Applications")
-            .appendingPathComponent(appURL.lastPathComponent)
-        let script = """
-        do shell script "rm -rf '\(dest.path)' && cp -R '\(appURL.path)' '\(dest.path)'" with administrator privileges
-        """
-        var errorDict: NSDictionary?
-        let apple = NSAppleScript(source: script)!
-        _ = apple.executeAndReturnError(&errorDict)
-        if let e = errorDict {
-            return (false, e[NSAppleScript.errorMessage] as? String)
-        }
-        return (true, nil)
     }
 }

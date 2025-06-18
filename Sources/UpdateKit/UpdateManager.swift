@@ -54,36 +54,41 @@ public final class UpdateManager: ObservableObject {
 
     /// Kick off the download → unpack → install flow
     public func startUpdate(from info: UpdateInfo) {
+        // 1️⃣ Kick off the UI
         DispatchQueue.main.async {
-            self.isUpdating = true
-            self.status = "Starting update…"
+            self.isUpdating     = true
+            self.status         = "Starting update…"
             self.downloadProgress = 0.0
         }
 
-        UpdateInstaller.downloadAndInstall(
+        // 2️⃣ Download into ~/Downloads
+        UpdateInstaller.downloadToDownloads(
             from: info.downloadURL,
-            progress: { p in
+            progress: { fraction in
                 DispatchQueue.main.async {
-                    self.downloadProgress = p
-                    self.status = "Downloading… \(Int(p * 100))%"
+                    self.downloadProgress = fraction
+                    self.status = "Downloading… \(Int(fraction * 100))%"
                 }
             },
             completion: { success, error in
                 DispatchQueue.main.async {
                     self.isUpdating = false
+
                     if success {
-                        self.status = "✅ Update installed."
+                        self.status           = "✅ Download complete. Check your Downloads folder."
                         self.installSucceeded = true
-                        self.promptRelaunch()
-                    } else {
-                        self.status = "❌ Update failed: \(error?.localizedDescription ?? "Unknown error")"
+                        // If you had a relaunch prompt, you could call it here:
+                        // self.promptRelaunch()
+                    }
+                    else {
+                        let message = error?.localizedDescription ?? "Unknown error"
+                        self.status           = "❌ Update failed: \(message)"
                         self.installSucceeded = false
                     }
                 }
             }
         )
     }
-
     // MARK: — Helpers
 
     private func promptRelaunch() {
