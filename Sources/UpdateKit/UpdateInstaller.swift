@@ -14,28 +14,42 @@ public enum UpdateInstaller {
         downloadAndUnpack(from: url, progress: progress) { result in
             switch result {
             case .success(let newAppURL):
+                print("✅ [Updater] Downloaded new build to:", newAppURL.path)
+
                 // 1️⃣ In-place
                 if isBundleWritable() {
                     do {
                         try replaceInPlace(newAppURL: newAppURL)
+                        print("🔄 [Updater] Replaced in-place at:", Bundle.main.bundleURL.path)
                         return completion(true, nil)
-                    } catch { /* fall through */ }
+                    } catch {
+                        print("⚠️ [Updater] replaceInPlace failed:", error)
+                    }
+                } else {
+                    print("ℹ️ [Updater] Bundle not writable at:", Bundle.main.bundleURL.path)
                 }
+
                 // 2️⃣ ~/Applications
                 do {
                     try installToUserApplications(newAppURL: newAppURL)
+                    print("🔄 [Updater] Installed to ~/Applications:", newAppURL.lastPathComponent)
                     return completion(true, nil)
-                } catch { /* fall through */ }
-                // 3️⃣ /Applications with prompt
+                } catch {
+                    print("⚠️ [Updater] installToUserApplications failed:", error)
+                }
+
+                // 3️⃣ /Applications with admin prompt
                 let (ok, errMsg) = privilegedCopyToApplications(appURL: newAppURL)
+                print("🔄 [Updater] privilegedCopyToApplications ok? \(ok), errMsg:", errMsg ?? "none")
                 let nsErr = errMsg.map {
                     NSError(domain: "UpdateInstaller", code: 1,
                             userInfo: [NSLocalizedDescriptionKey: $0])
                 }
-                completion(ok, nsErr)
+                return completion(ok, nsErr)
 
             case .failure(let error):
-                completion(false, error)
+                print("❌ [Updater] downloadAndUnpack failed:", error)
+                return completion(false, error)
             }
         }
     }
