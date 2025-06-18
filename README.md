@@ -22,16 +22,11 @@ Live download progress
 Zero Code Signing: No Developer ID or entitlements required.
 SwiftPM Integration: Add it to your project in seconds.
 🛠 Get Started in 4 Steps
+
+
 1. 📦 Install via Swift Package Manager
 In Package.swift:
 
-swift
-
-Collapse
-
-Wrap
-
-Copy
 .package(url: "https://github.com/TIDYBEATS1/UpdateKit.git", from: "1.0.0")
 In Xcode:
 
@@ -39,12 +34,6 @@ File > Add Package Dependency…
 Enter: https://github.com/KIDYBEATS1/UpdateKit.TIDYBEATS1
 2. 🔎 Check for Updates
 Fetch the latest release and show the prompt:
-
-swift
-
-Collapse
-
-Wrap
 
 Copy
 import SwiftUI
@@ -94,13 +83,6 @@ struct MyApp: App {
 3. 📈 Show Progress (Optional)
 Add a progress view for download feedback:
 
-swift
-
-Collapse
-
-Wrap
-
-Copy
 if updater.isUpdating {
     ProgressView(updater.status, value: updater.downloadProgress)
         .padding()
