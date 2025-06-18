@@ -1,45 +1,40 @@
-# 🛠️ UpdateKit v1.0.0 – Patch Notes Released  
-*Sparkle-inspired macOS update framework. Ultra-light, delivers .zip updates to ~/Downloads — no app replacement, no permissions, no code signing needed. Modern, sandbox-safe, dev-friendly.*
+🛠️ UpdateKit v1.0.0 – Patch Notes Released
+Sparkle-inspired macOS update framework. Ultra-lightweight. Delivers `.zip` updates to `~/Downloads`. No app replacement, no permissions, no code signing. Modern, sandbox-safe, and dev-friendly.
 
----
+🚀 v1.0.0: The Launch Update
+UpdateKit debuts as a sleek, modern solution for macOS app updates. Lightweight, App Store-compliant, and user-controlled via a SwiftUI-powered interface.
 
-## 🚀 v1.0.0: The Launch Update  
-UpdateKit debuts as a sleek, modern solution for macOS app updates. Lightweight, App Store-compliant, and user-controlled with a SwiftUI-powered experience.
+🎉 New in v1.0.0
+- ✅ Public Launch – UpdateKit is live and ready to power your updates.
+- 📥 Safe Downloads – Drops `.zip` files into `~/Downloads`, fully sandbox-safe.
+- 🔔 SwiftUI Prompt – Sparkle-style sheet with version info and patch notes.
+- 📊 Live Progress – Displays download progress and status.
+- 🌐 GitHub Releases Support – Auto-checks and fetches `.zip` updates from your repo.
 
-### 🎉 New in v1.0.0  
-- **Public Launch**: UpdateKit is live to supercharge your app updates!  
-- **Safe Downloads**: .zip updates land in ~/Downloads, fully sandbox-compliant.  
-- **SwiftUI Prompt**: Sparkle-style alert with version, patch notes, and “Update Now”/“Skip” buttons.  
-- **Live Progress**: Real-time download status and progress bar.  
-- **GitHub Releases Powered**: Auto-checks versions and fetches .zip files from your repo.  
+🔑 Core Features
+- 🙋‍♂️ User-Driven Updates – No auto-installs. User chooses when to update.
+- 🛡️ App Store Friendly – Works with sandboxed, signed, or unsigned apps.
+- 📦 Simple `.zip` Delivery – Pulls from GitHub Releases.
+- 🎨 Elegant SwiftUI UI:
+  - Version display
+  - Scrollable patch notes
+  - “Update Now” / “Skip” actions
+  - Real-time progress bar
+- 🧾 No Code Signing Needed – No Developer ID or entitlements required.
+- ⚙️ Swift Package Manager Support – Integrate in seconds.
 
-### 🔑 Core Features  
-- **User-Driven Updates**: No auto-installs — users decide when to update.  
-- **App Store Ready**: Works with sandboxed, signed, or unsigned apps.  
-- **Simple .zip Delivery**: Downloads updates via GitHub Releases.  
-- **Elegant SwiftUI UI**:  
-  - Version display  
-  - Scrollable patch notes  
-  - “Update Now” or “Skip” actions  
-  - Live download progress  
-- **Zero Code Signing**: No Developer ID or entitlements required.  
-- **SwiftPM Integration**: Add it to your project in seconds.  
+🛠 Getting Started – 4 Easy Steps
 
----
-
-## 🛠 Get Started in 4 Steps  
-
-### 1. 📦 Install via Swift Package Manager  
-In `Package.swift`:  
-```swift
+1. 📦 Install via Swift Package Manager
+In Package.swift:
 .package(url: "https://github.com/TIDYBEATS1/UpdateKit.git", from: "1.0.0")
 
-In Xcode: File > Add Package Dependency…
-Enter: https://github.com/KIDYBEATS1/UpdateKit.TIDYBEATS1
-2. 🔎 Check for Updates
-Fetch the latest release and show the prompt:
+In Xcode:
+File → Add Package Dependency…
+Paste: https://github.com/TIDYBEATS1/UpdateKit.git
 
-Copy
+2. 🔎 Check for Updates
+
 import SwiftUI
 import UpdateKit
 
@@ -84,38 +79,30 @@ struct MyApp: App {
         }
     }
 }
-3. 📈 Show Progress (Optional)
-Add a progress view for download feedback:
 
+3. 📈 Show Progress (Optional)
 if updater.isUpdating {
     ProgressView(updater.status, value: updater.downloadProgress)
+        .progressViewStyle(.linear)
         .padding()
 }
 
 4. ✅ “Update Now” Flow
-Downloads .zip to ~/Downloads.
-No app changes or relaunches.
-Users manually install the update.
-No permissions or prompts needed.
-🔒 Sandbox & Security
-UpdateKit is built for compliance:
+- 📥 `.zip` file is downloaded into `~/Downloads`
+- 🛑 No app changes, replacements, or relaunches
+- 🖱️ User manually installs the new version
+- 🔐 No permissions or elevation required
 
-100% Sandboxed: No system folder access or Apple Events.
-No Admin Prompts: Seamless user experience.
-App Store Safe: Ideal for hardened runtime or Store apps.
+🔒 Sandboxing & Security
+UpdateKit is designed for maximum compatibility:
+- ✅ 100% Sandboxed: No system access, no Apple Events
+- 🚫 No Admin Prompts
+- 🛡️ App Store Safe: Perfect for hardened runtime or store apps
+
 📜 License
-MIT © KIDYBEATS1
+MIT License © TIDYBEATS1
 
 🔥 Why Choose UpdateKit?
-UpdateKit is the hassle-free way to deliver macOS updates. With a modern SwiftUI interface, GitHub Releases integration, and full sandbox support, it’s perfect for indie devs and App Store apps. Keep your users updated without the complexity.
+UpdateKit is the hassle-free way to ship macOS updates. With a clean SwiftUI interface, full sandbox support, and GitHub Releases integration, it’s perfect for indie developers, power users, and App Store submissions.
 
-Start Now: github.com/KIDYBEATS1/UpdateKit
-
-Improvements Made:
-
-Tighter Prose: Shortened descriptions for impact while keeping all details.
-Bolder Visuals: Used stronger headings and emojis for a dynamic look.
-Developer Focus: Emphasized ease of use and App Store compatibility.
-Streamlined Code: Aligned code formatting and renamed variables (e.g., showSheet to showPrompt) for clarity.
-Action-Oriented: Added a direct call-to-action with the repo link.
-Consistent Tone: Adopted a confident, energetic voice to engage devs.
+👉 Start now: https://github.com/TIDYBEATS1/UpdateKit
