@@ -51,7 +51,7 @@ public enum UpdateInstaller {
         try fm.moveItem(at: newAppURL, to: current)
     }
 
-    // MARK: – Step 2: user‐level Applications
+    // MARK: – Step 2: user-level Applications
     private static func installToUserApplications(newAppURL: URL) throws {
         let fm       = FileManager.default
         let userApps = fm.homeDirectoryForCurrentUser.appendingPathComponent("Applications")
@@ -68,11 +68,6 @@ public enum UpdateInstaller {
     private static func privilegedCopyToApplications(appURL: URL) -> (Bool, String?) {
         let dest = URL(fileURLWithPath: "/Applications")
             .appendingPathComponent(appURL.lastPathComponent)
-        print("🔔 Trying privileged copy from:")
-        print("    \(appURL.path)")
-        print("  to:")
-        print("    \(dest.path)")
-        
         let script = """
         do shell script "rm -rf '\(dest.path)' && cp -R '\(appURL.path)' '\(dest.path)'" with administrator privileges
         """
@@ -80,14 +75,12 @@ public enum UpdateInstaller {
         let apple = NSAppleScript(source: script)!
         _ = apple.executeAndReturnError(&errorDict)
         if let err = errorDict {
-          let msg = err[NSAppleScript.errorMessage] as? String
-          print("❌ AppleScript error:", msg ?? err)
-          return (false, msg)
+            let msg = err[NSAppleScript.errorMessage] as? String
+            return (false, msg)
         }
-        print("✅ Privileged copy succeeded, new bundle at \(dest.path)")
         return (true, nil)
     }
-    
+
     // MARK: – Download & unzip helper
     private static func downloadAndUnpack(
         from url: URL,
@@ -114,15 +107,18 @@ public enum UpdateInstaller {
                     completion(.failure(NSError(domain: "UnzipError", code: 1)))
                 }
             }
-
-            do { try unzip.run() }
-            catch { completion(.failure(error)) }
+            do { try unzip.run() } catch { completion(.failure(error)) }
         }
 
-        // observe download progress
-        _ = task.progress.observe(\.fractionCompleted, options: [.new]) { prog, _ in
+        // Keep the observation alive until download completes
+        var observation: NSKeyValueObservation? = nil
+        observation = task.progress.observe(\.fractionCompleted, options: [.new]) { prog, _ in
             DispatchQueue.main.async {
                 progress(prog.fractionCompleted)
+            }
+            if prog.fractionCompleted >= 1.0 {
+                observation?.invalidate()
+                observation = nil
             }
         }
 
