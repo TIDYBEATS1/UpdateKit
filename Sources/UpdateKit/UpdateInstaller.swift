@@ -66,16 +66,28 @@ public enum UpdateInstaller {
     // MARK: – Step 3: admin prompt fallback
     @discardableResult
     private static func privilegedCopyToApplications(appURL: URL) -> (Bool, String?) {
-        let script = #"do shell script "cp -R \"\#(appURL.path)\" /Applications/" with administrator privileges"#
-        var errDict: NSDictionary?
+        let dest = URL(fileURLWithPath: "/Applications")
+            .appendingPathComponent(appURL.lastPathComponent)
+        print("🔔 Trying privileged copy from:")
+        print("    \(appURL.path)")
+        print("  to:")
+        print("    \(dest.path)")
+        
+        let script = """
+        do shell script "rm -rf '\(dest.path)' && cp -R '\(appURL.path)' '\(dest.path)'" with administrator privileges
+        """
+        var errorDict: NSDictionary?
         let apple = NSAppleScript(source: script)!
-        apple.executeAndReturnError(&errDict)
-        if let e = errDict {
-            return (false, e[NSAppleScript.errorMessage] as? String)
+        _ = apple.executeAndReturnError(&errorDict)
+        if let err = errorDict {
+          let msg = err[NSAppleScript.errorMessage] as? String
+          print("❌ AppleScript error:", msg ?? err)
+          return (false, msg)
         }
+        print("✅ Privileged copy succeeded, new bundle at \(dest.path)")
         return (true, nil)
     }
-
+    
     // MARK: – Download & unzip helper
     private static func downloadAndUnpack(
         from url: URL,
