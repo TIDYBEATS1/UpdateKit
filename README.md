@@ -34,7 +34,8 @@ File → Add Package Dependency…
 Paste: https://github.com/TIDYBEATS1/UpdateKit.git
 
 2. 🔎 Check for Updates
-
+<pre>
+```swift
 import SwiftUI
 import UpdateKit
 
@@ -79,6 +80,9 @@ struct MyApp: App {
         }
     }
 }
+```
+</pre>
+
 
 3. 📈 Show Progress (Optional)
 if updater.isUpdating {
