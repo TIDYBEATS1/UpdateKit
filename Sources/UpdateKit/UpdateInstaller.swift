@@ -2,101 +2,71 @@ import Foundation
 import AppKit
 
 public enum UpdateInstaller {
-    /// Downloads the ZIP, unpacks it, then installs via one of three strategies
-    public static func downloadAndInstall(
-      from url: URL,
-      progress: @escaping (Double)->Void,
-      completion: @escaping (Bool,Error?)->Void
-    ) {
-      downloadAndUnpack(from: url, progress: progress) { result in
-        switch result {
-        case .success(let newAppURL):
-          // 1️⃣ In-place
-          if isBundleWritable() {
-            do { try replaceInPlace(newAppURL: newAppURL); return completion(true,nil) }
-            catch { /*fallthrough*/ }
-          }
-          // 2️⃣ ~/Applications
-          do { try installToUserApplications(newAppURL: newAppURL); return completion(true,nil) }
-          catch { /*fallthrough*/ }
-          // 3️⃣ /Applications
-          let (ok,msg) = privilegedCopyToApplications(appURL: newAppURL)
-          let err = msg.map { NSError(domain:"UpdateInstaller", code:1,
-                          userInfo:[NSLocalizedDescriptionKey:$0]) }
-          completion(ok, err)
+    /// Keep the observation alive until teardown
+    private static var downloadObservation: NSKeyValueObservation?
 
-        case .failure(let err):
-          completion(false, err)
-        }
-      }
-    }
-    
-    private static func downloadAndUnpack(
+    /// Downloads the ZIP, unpacks it, then installs via one of three strategies:
+    /// 1) In-place (if you shipped unsigned & it’s writable)
+    /// 2) ~/Applications (no privileges)
+    /// 3) /Applications via an admin prompt
+    public static func downloadAndInstall(
         from url: URL,
         progress: @escaping (Double) -> Void,
-        completion: @escaping (Result<URL, Error>) -> Void
+        completion: @escaping (Bool, Error?) -> Void
     ) {
-        let task = URLSession.shared.downloadTask(with: url) { tempURL, _, err in
-            guard let tmp = tempURL else {
-                return completion(.failure(err ?? NSError(
-                    domain: "DownloadError", code: -1)))
-            }
-            let fm       = FileManager.default
-            let unpacked = fm.temporaryDirectory
-                .appendingPathComponent("UpdateUnpacked")
-            try? fm.removeItem(at: unpacked)
-            try? fm.createDirectory(at: unpacked,
-                                    withIntermediateDirectories: true)
-            
-            let unzip = Process()
-            unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-            unzip.arguments     = ["-o", tmp.path, "-d", unpacked.path]
-            unzip.terminationHandler = { _ in
-                do {
-                    let contents = try fm.contentsOfDirectory(
-                        at: unpacked,
-                        includingPropertiesForKeys: nil
-                    )
-                    if let appURL = contents.first(
-                        where: { $0.pathExtension == "app" }
-                    ) {
-                        completion(.success(appURL))
-                    } else {
-                        throw NSError(domain: "UnzipError",
-                                      code: 1,
-                                      userInfo: [NSLocalizedDescriptionKey:
-                                                    "No .app bundle found"])
+        downloadAndUnpack(from: url, progress: progress) { result in
+            // Tear down observation as soon as unpack is done
+            downloadObservation = nil
+
+            switch result {
+            case .success(let newAppURL):
+                // 1️⃣ In-place
+                if isBundleWritable() {
+                    do {
+                        try replaceInPlace(newAppURL: newAppURL)
+                        return completion(true, nil)
+                    } catch {
+                        // fall through to next
                     }
-                } catch {
-                    completion(.failure(error))
                 }
+
+                // 2️⃣ ~/Applications
+                do {
+                    try installToUserApplications(newAppURL: newAppURL)
+                    return completion(true, nil)
+                } catch {
+                    // fall through
+                }
+
+                // 3️⃣ /Applications with prompt
+                let (ok, errMsg) = privilegedCopyToApplications(appURL: newAppURL)
+                let nsErr = errMsg.map {
+                    NSError(domain: "UpdateInstaller", code: 1,
+                            userInfo: [NSLocalizedDescriptionKey: $0])
+                }
+                completion(ok, nsErr)
+
+            case .failure(let error):
+                completion(false, error)
             }
-            
-            do { try unzip.run() }
-            catch { completion(.failure(error)) }
         }
-        
-        // report progress
-        _ = task.progress.observe(\.fractionCompleted) { prog, _ in
-            DispatchQueue.main.async {
-                progress(prog.fractionCompleted)
-            }
-        }
-        task.resume()
     }
-    
+
     // MARK: – Step 1: replace in-place
+
     private static func isBundleWritable() -> Bool {
         FileManager.default.isWritableFile(atPath: Bundle.main.bundleURL.path)
     }
+
     private static func replaceInPlace(newAppURL: URL) throws {
         let current = Bundle.main.bundleURL
         let fm = FileManager.default
         try fm.removeItem(at: current)
         try fm.moveItem(at: newAppURL, to: current)
     }
-    
-    // MARK: – Step 2: user-level Applications
+
+    // MARK: – Step 2: user‐level Applications
+
     private static func installToUserApplications(newAppURL: URL) throws {
         let fm       = FileManager.default
         let userApps = fm.homeDirectoryForCurrentUser.appendingPathComponent("Applications")
@@ -107,22 +77,73 @@ public enum UpdateInstaller {
         }
         try fm.moveItem(at: newAppURL, to: dest)
     }
-    
+
     // MARK: – Step 3: admin prompt fallback
+
     @discardableResult
     private static func privilegedCopyToApplications(appURL: URL) -> (Bool, String?) {
         let dest = URL(fileURLWithPath: "/Applications")
             .appendingPathComponent(appURL.lastPathComponent)
+
         let script = """
         do shell script "rm -rf '\(dest.path)' && cp -R '\(appURL.path)' '\(dest.path)'" with administrator privileges
         """
+
         var errorDict: NSDictionary?
         let apple = NSAppleScript(source: script)!
         _ = apple.executeAndReturnError(&errorDict)
+
         if let err = errorDict {
             let msg = err[NSAppleScript.errorMessage] as? String
             return (false, msg)
         }
+
         return (true, nil)
+    }
+
+    // MARK: – Download & unzip helper
+
+    private static func downloadAndUnpack(
+        from url: URL,
+        progress: @escaping (Double) -> Void,
+        completion: @escaping (Result<URL, Error>) -> Void
+    ) {
+        let task = URLSession.shared.downloadTask(with: url) { tempURL, _, err in
+            guard let tmp = tempURL else {
+                return completion(.failure(err ?? NSError(domain: "DownloadError", code: -1)))
+            }
+
+            let fm       = FileManager.default
+            let unpacked = fm.temporaryDirectory.appendingPathComponent("UpdateUnpacked")
+            try? fm.removeItem(at: unpacked)
+            try? fm.createDirectory(at: unpacked, withIntermediateDirectories: true)
+
+            let unzip = Process()
+            unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+            unzip.arguments     = ["-o", tmp.path, "-d", unpacked.path]
+            unzip.terminationHandler = { _ in
+                let files = try? fm.contentsOfDirectory(at: unpacked, includingPropertiesForKeys: nil)
+                if let app = files?.first(where: { $0.pathExtension == "app" }) {
+                    completion(.success(app))
+                } else {
+                    completion(.failure(NSError(domain: "UnzipError", code: 1)))
+                }
+            }
+
+            do {
+                try unzip.run()
+            } catch {
+                completion(.failure(error))
+            }
+        }
+
+        // KEEP the observation around until download finishes
+        downloadObservation = task.progress.observe(\.fractionCompleted, options: [.new]) { prog, _ in
+            DispatchQueue.main.async {
+                progress(prog.fractionCompleted)
+            }
+        }
+
+        task.resume()
     }
 }
